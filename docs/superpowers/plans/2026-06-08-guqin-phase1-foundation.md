@@ -1153,14 +1153,14 @@ export function StatusBar() {
 
   return (
     <div className="status-bar">
-      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第
+      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]}{' '}
       <span style={{ textDecoration: editingField === 'string' ? 'underline' : undefined }}>
         {stringDisplay}
       </span>
       弦
       {selected.type !== 'san' && (
         <>
-          {' '}第
+          {' '}
           <span style={{ textDecoration: editingField === 'position' ? 'underline' : undefined }}>
             {positionDisplay}
           </span>
