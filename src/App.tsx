@@ -3,6 +3,7 @@ import { StatusBar } from './components/StatusBar';
 import { PositionStrip } from './components/PositionStrip';
 import { GuqinDisplay } from './components/GuqinDisplay';
 import { Timeline } from './components/Timeline';
+import { ExportPanel } from './components/ExportPanel';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
       <PositionStrip />
       <GuqinDisplay />
       <Timeline />
+      <ExportPanel />
     </div>
   );
 }
