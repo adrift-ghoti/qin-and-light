@@ -1,5 +1,9 @@
 import { useStore } from '../state/store';
 import { isNoteComplete } from '../model/types';
+import { HUI_POSITIONS } from '../model/guqin';
+
+// 散音無按點,光點固定放在岳山(position=0)與一徽的中點,示意「整弦振動」而非某個具體按點。
+const SAN_MARKER_POSITION = HUI_POSITIONS[0] / 2;
 
 const STRING_ENDPOINTS = [
   { y1: -21.6, y2: -9 },
@@ -31,7 +35,7 @@ export function GuqinDisplay() {
       >
         <g transform="translate(45.5,80)">
           {complete.map((n) => {
-            const pos = n.type === 'san' ? 0.5 : (n.position ?? 0.5);
+            const pos = n.type === 'san' ? SAN_MARKER_POSITION : (n.position ?? 0.5);
             const { x, y } = markerPoint(n.string! - 1, pos);
             return <circle key={n.id} cx={x} cy={y} r={4} fill="#ffe066" opacity={0.9} />;
           })}

@@ -775,7 +775,11 @@ export class AudioEngine {
     this.source = src;
     this.startedAtCtxTime = this.ctx.currentTime;
     this.playing = true;
-    src.onended = () => { if (this.playing) this.pause(); };
+    // stop() 觸發的 onended 是非同步的:seek() 會先 stop() 舊 source 再立刻建立新 source,
+    // 若這裡只檢查 this.playing,舊 source 延遲觸發的 onended 會誤判「該暫停了」,
+    // 把剛開始播放的新 source 也一併停掉(2026-07-05 修正)。用 this.source === src 確認事件
+    // 來自目前正在播放的 source(代表音檔真的自然播完),而非被 seek/pause 換掉的舊 source。
+    src.onended = () => { if (this.source === src && this.playing) this.pause(); };
   }
 
   pause(): void {
@@ -905,7 +909,7 @@ git commit -m "feat: add TransportBar with audio load, play/pause, live time"
 
 ## Task 8: 全域鍵盤快捷鍵 `useGlobalShortcuts` + 輸入狀態列 `StatusBar`
 
-依高層計畫 §3.1:`S`/`F`/`A` 插入占位音;`↑`/`↓` 跳選音;`Tab` 切換編輯欄位(弦號/位置);數字鍵在欄位編輯中組成數值(弦號欄位為單一 1-7 數字,位置欄位為徽分記法);`Enter` 確認、`Esc` 取消、`Backspace` 刪字或刪音;`Space` 播放/暫停;`←`/`→` 與 `Ctrl+←`/`Ctrl+→` 倒退快轉;`Shift+←`/`Shift+→` 與 `Shift+Ctrl+←`/`Shift+Ctrl+→` 微調選中音的 `startTime`。另依 2026-07-04 定案(施作注意事項 B7),輸入緩衝字串要能被 UI 訂閱顯示,本 Task 一併加入 `StatusBar` 元件與 store 的 `editBuffer` 鏡射。
+依高層計畫 §3.1:`S`/`F`/`A` 插入占位音;`↑`/`↓` 跳選音;`Tab` 切換編輯欄位(弦號/位置);數字鍵在欄位編輯中組成數值(弦號欄位為單一 1-7 數字,位置欄位為徽分記法);`Enter` 確認、`Esc` 取消、`Backspace` 編輯中刪字(2026-07-05 定案:不在編輯中時 Backspace 不刪音,刪除選中音只用 `Delete`);`Space` 播放/暫停;`←`/`→` 與 `Ctrl+←`/`Ctrl+→` 倒退快轉;`Shift+←`/`Shift+→` 與 `Shift+Ctrl+←`/`Shift+Ctrl+→` 微調選中音的 `startTime`。另依 2026-07-04 定案(施作注意事項 B7),輸入緩衝字串要能被 UI 訂閱顯示,本 Task 一併加入 `StatusBar` 元件與 store 的 `editBuffer` 鏡射。
 
 **Files:**
 - Create: `src/hooks/useGlobalShortcuts.ts`, `src/hooks/useGlobalShortcuts.test.ts`, `src/hooks/fieldInput.ts`, `src/hooks/fieldInput.test.ts`, `src/components/StatusBar.tsx`
@@ -977,9 +981,9 @@ const NUDGE_STEP_BIG = 0.1;
 export function useGlobalShortcuts() {
   const bufferRef = useRef('');
   // 是否正在編輯欄位緩衝字串:第一個數字鍵按下時設 true,Enter 成功/Esc 取消時設 false,
-  // 選取新音或插入新占位音時也重設 false。只有這個值為 false 時,Delete/Backspace 才會刪除整個音;
-  // 否則 Backspace 只刪 buffer 最後一字——避免 Enter 確認後 buffer 已清空,
-  // 使用者多按一下 Backspace 就誤刪選中音的問題。
+  // 選取新音或插入新占位音時也重設 false。編輯中時 Backspace 用來刪 buffer 最後一字;
+  // 不在編輯中時 Backspace 不做任何事(2026-07-05 定案:刪除選中音只用 Delete,
+  // 避免使用者誤按 Backspace 就刪掉整個音)。
   const isEditingRef = useRef(false);
 
   // 2026-07-04 定案(施作注意事項 B7):輸入緩衝要能被 StatusBar 訂閱顯示,不能只活在 ref 裡。
@@ -1090,13 +1094,12 @@ export function useGlobalShortcuts() {
         return;
       }
       if (e.key === 'Backspace') {
+        // 一律 preventDefault,避免焦點不在輸入框時瀏覽器把 Backspace 當成「上一頁」。
         e.preventDefault();
         if (isEditingRef.current) {
           setBuffer(bufferRef.current.slice(0, -1));
-        } else {
-          // 不在編輯中(buffer 已確認過或本來就沒在打字):Backspace 視同 Delete,刪除選中音。
-          useStore.getState().removeNote(selected.id);
         }
+        // 不在編輯中時 Backspace 不做任何事——刪除選中音只透過 Delete。
         return;
       }
       if (/^[0-9.]$/.test(e.key)) {
@@ -1120,13 +1123,12 @@ Update `src/App.tsx` 加入 `useGlobalShortcuts();`(於元件內呼叫,不渲染
 
 快捷鍵打字目前是「盲打」——UI 上完全看不到目前選中音、正在編輯哪個欄位、已經打了什麼字。地基切片就要有一個最小狀態列呈現這些資訊,不等後續的 `NoteInspector`。
 
-Create `src/components/StatusBar.tsx`:
+Create `src/components/StatusBar.tsx`(2026-07-05 更新:改為在弦號/徽位數字本身用底線標示目前編輯欄位,取代原本附加「— 編輯中:欄位 = 字串」的文字寫法):
 
 ```tsx
 import { useStore } from '../state/store';
 
 const TYPE_LABEL: Record<string, string> = { san: '散音', fan: '泛音', an: '按音' };
-const FIELD_LABEL: Record<string, string> = { string: '弦號', position: '按點/徽位' };
 
 export function StatusBar() {
   const notes = useStore((s) => s.notes);
@@ -1140,11 +1142,29 @@ export function StatusBar() {
     return <div className="status-bar">未選中音 — 按 S/F/A 插入散音/泛音/按音</div>;
   }
 
+  // 編輯中時顯示還沒確認的緩衝字串;沒在編輯時顯示已確認的值。
+  const stringDisplay = editingField === 'string' && editBuffer !== ''
+    ? editBuffer
+    : String(selected.string ?? '?');
+
+  const positionDisplay = editingField === 'position' && editBuffer !== ''
+    ? editBuffer
+    : (selected.huiNotation ?? (selected.position !== undefined ? selected.position.toFixed(2) : '?'));
+
   return (
     <div className="status-bar">
-      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第{selected.string ?? '?'}弦
-      {editBuffer !== '' && (
-        <span> — 編輯中:{FIELD_LABEL[editingField]} = {editBuffer}_</span>
+      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第
+      <span style={{ textDecoration: editingField === 'string' ? 'underline' : undefined }}>
+        {stringDisplay}
+      </span>
+      弦
+      {selected.type !== 'san' && (
+        <>
+          {' '}
+          <span style={{ textDecoration: editingField === 'position' ? 'underline' : undefined }}>
+            {positionDisplay}
+          </span>
+        </>
       )}
     </div>
   );
@@ -1156,7 +1176,7 @@ Update `src/App.tsx` 加入 `import { StatusBar } from './components/StatusBar';
 - [ ] **Step 7: 手動驗證**
 
 Run: `npm run dev`
-Expected:載入音檔後按 `Space` 可播放/暫停,即使先前點過播放按鈕、焦點停留在按鈕上也一樣只切換一次(不會雙重觸發);`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中,狀態列同步顯示「選中:… 散音/泛音/按音 第?弦」;選中音後按數字鍵(如 `3`)時狀態列即時顯示「編輯中:弦號 = 3」,按 `Enter` 可設定弦號且狀態列的編輯中字樣消失;`Tab` 切到位置欄位後輸入 `7.6`,狀態列顯示「編輯中:按點/徽位 = 7.6」,`Enter` 確認後設定按點;`Enter` 確認成功後,馬上再按一次 `Backspace` 不會刪除該音(需先按數字鍵進入編輯狀態,`Backspace` 才會改成刪字);位置欄位故意打入不合法字串(如 `7..6`)按 `Enter` 時,主控台會印出警告且輸入保留可繼續修正(狀態列仍顯示該未確認字串),不會拋出未捕捉例外;`Shift+←/→` 能微調選中音的時間;未在編輯欄位時 `Delete`/`Backspace` 能刪除選中音。
+Expected:載入音檔後按 `Space` 可播放/暫停,即使先前點過播放按鈕、焦點停留在按鈕上也一樣只切換一次(不會雙重觸發);`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中,狀態列同步顯示「選中:… 散音/泛音/按音 第?弦」(散音不顯示徽位欄位,泛音/按音才顯示);選中音後按數字鍵(如 `3`)時狀態列的弦號數字即時顯示底線與正在輸入的字元,按 `Enter` 確認後底線消失且顯示確認值;`Tab` 切到位置欄位後底線切換到徽位數字下方,輸入 `7.6` 再 `Enter` 確認後設定按點;`Enter` 確認成功後,馬上再按一次 `Backspace` 不會有任何反應(不會刪字也不會刪音,因為此時不在編輯中);位置欄位故意打入不合法字串(如 `7..6`)按 `Enter` 時,主控台會印出警告且輸入保留可繼續修正(狀態列該欄位仍顯示未確認字串與底線),不會拋出未捕捉例外;`Shift+←/→` 能微調選中音的時間;未在編輯欄位時只有 `Delete` 能刪除選中音,`Backspace` 不會刪除選中音。
 
 - [ ] **Step 8: 提交**
 
@@ -1290,6 +1310,11 @@ Create `src/components/GuqinDisplay.tsx`:
 ```tsx
 import { useStore } from '../state/store';
 import { isNoteComplete } from '../model/types';
+import { HUI_POSITIONS } from '../model/guqin';
+
+// 散音無按點,光點固定放在岳山(position=0)與一徽的中點(2026-07-05 定案),
+// 示意「整弦振動」而非某個具體按點,而不是弦正中點。
+const SAN_MARKER_POSITION = HUI_POSITIONS[0] / 2;
 
 const STRING_ENDPOINTS = [
   { y1: -21.6, y2: -9 },
@@ -1321,7 +1346,7 @@ export function GuqinDisplay() {
       >
         <g transform="translate(45.5,80)">
           {complete.map((n) => {
-            const pos = n.type === 'san' ? 0.5 : (n.position ?? 0.5);
+            const pos = n.type === 'san' ? SAN_MARKER_POSITION : (n.position ?? 0.5);
             const { x, y } = markerPoint(n.string! - 1, pos);
             return <circle key={n.id} cx={x} cy={y} r={4} fill="#ffe066" opacity={0.9} />;
           })}

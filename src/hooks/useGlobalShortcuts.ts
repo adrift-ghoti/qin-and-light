@@ -12,9 +12,9 @@ const NUDGE_STEP_BIG = 0.1;
 export function useGlobalShortcuts() {
   const bufferRef = useRef('');
   // 是否正在編輯欄位緩衝字串:第一個數字鍵按下時設 true,Enter 成功/Esc 取消時設 false,
-  // 選取新音或插入新占位音時也重設 false。只有這個值為 false 時,Delete/Backspace 才會刪除整個音;
-  // 否則 Backspace 只刪 buffer 最後一字——避免 Enter 確認後 buffer 已清空,
-  // 使用者多按一下 Backspace 就誤刪選中音的問題。
+  // 選取新音或插入新占位音時也重設 false。編輯中時 Backspace 用來刪 buffer 最後一字;
+  // 不在編輯中時 Backspace 不做任何事(2026-07-05 定案:刪除選中音只用 Delete,
+  // 避免使用者誤按 Backspace 就刪掉整個音)。
   const isEditingRef = useRef(false);
 
   // 2026-07-04 定案(施作注意事項 B7):輸入緩衝要能被 StatusBar 訂閱顯示,不能只活在 ref 裡。
@@ -125,13 +125,12 @@ export function useGlobalShortcuts() {
         return;
       }
       if (e.key === 'Backspace') {
+        // 一律 preventDefault,避免焦點不在輸入框時瀏覽器把 Backspace 當成「上一頁」。
         e.preventDefault();
         if (isEditingRef.current) {
           setBuffer(bufferRef.current.slice(0, -1));
-        } else {
-          // 不在編輯中(buffer 已確認過或本來就沒在打字):Backspace 視同 Delete,刪除選中音。
-          useStore.getState().removeNote(selected.id);
         }
+        // 不在編輯中時 Backspace 不做任何事——刪除選中音只透過 Delete。
         return;
       }
       if (/^[0-9.]$/.test(e.key)) {

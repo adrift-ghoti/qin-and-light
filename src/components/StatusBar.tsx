@@ -1,7 +1,6 @@
 import { useStore } from '../state/store';
 
 const TYPE_LABEL: Record<string, string> = { san: '散音', fan: '泛音', an: '按音' };
-const FIELD_LABEL: Record<string, string> = { string: '弦號', position: '按點/徽位' };
 
 export function StatusBar() {
   const notes = useStore((s) => s.notes);
@@ -15,11 +14,29 @@ export function StatusBar() {
     return <div className="status-bar">未選中音 — 按 S/F/A 插入散音/泛音/按音</div>;
   }
 
+  // 編輯中時顯示還沒確認的緩衝字串;沒在編輯時顯示已確認的值。
+  const stringDisplay = editingField === 'string' && editBuffer !== ''
+    ? editBuffer
+    : String(selected.string ?? '?');
+
+  const positionDisplay = editingField === 'position' && editBuffer !== ''
+    ? editBuffer
+    : (selected.huiNotation ?? (selected.position !== undefined ? selected.position.toFixed(2) : '?'));
+
   return (
     <div className="status-bar">
-      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第{selected.string ?? '?'}弦
-      {editBuffer !== '' && (
-        <span> — 編輯中:{FIELD_LABEL[editingField]} = {editBuffer}_</span>
+      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第
+      <span style={{ textDecoration: editingField === 'string' ? 'underline' : undefined }}>
+        {stringDisplay}
+      </span>
+      弦
+      {selected.type !== 'san' && (
+        <>
+          {' '}
+          <span style={{ textDecoration: editingField === 'position' ? 'underline' : undefined }}>
+            {positionDisplay}
+          </span>
+        </>
       )}
     </div>
   );
