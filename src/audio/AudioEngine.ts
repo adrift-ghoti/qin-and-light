@@ -27,7 +27,11 @@ export class AudioEngine {
     this.source = src;
     this.startedAtCtxTime = this.ctx.currentTime;
     this.playing = true;
-    src.onended = () => { if (this.playing) this.pause(); };
+    // stop() 觸發的 onended 是非同步的:seek() 會先 stop() 舊 source 再立刻建立新 source,
+    // 若這裡只檢查 this.playing,舊 source 延遲觸發的 onended 會誤判「該暫停了」,
+    // 把剛開始播放的新 source 也一併停掉。用 this.source === src 確認事件來自目前正在播放的
+    // source(代表音檔真的自然播完),而非被 seek/pause 換掉的舊 source。
+    src.onended = () => { if (this.source === src && this.playing) this.pause(); };
   }
 
   pause(): void {
