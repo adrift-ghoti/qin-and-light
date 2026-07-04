@@ -136,23 +136,23 @@ git commit -m "chore: scaffold Vite React TS project with Vitest"
 **Files:**
 - Create: `src/model/guqin.ts`, `src/model/guqin.test.ts`
 
-`HUI_POSITIONS` 由 `guqin-vector.svg` 內十三個 `<circle>` 徽記號的 `cx` 座標換算得出,而非憑空的諧音分數:弦線端點 `x1=379`(岳山/彈弦端,對應 `position=0`)、`x2=-22`(龍齦端,對應 `position=1`),`position = (379 - cx) / (379 - (-22))`。SVG 內徽記號由龍齦端往岳山端排列(對應十三徽→一徽),換算並反轉排序後得到:
+`HUI_POSITIONS` 採古琴傳統的**理論徽位**:岳山到龍齦(弦末段)之間的簡單整數比,而非由 `guqin-vector.svg` 的 `<circle>` 座標反推——先前版本曾以 `position = (379 - cx) / (379 - (-22))` 由畫面座標反推,但弦線在 SVG 中略帶弧度,x 軸投影並非等比例,反推值僅為近似(例如七徽算出 0.5150,但七徽理論上就是弦正中點 0.5)。`guqin-vector.svg` 的十三個徽記號座標已重新調整,使其視覺上盡量貼近下列理論比例;`position=0` 為岳山/彈弦端,`position=1` 為龍齦端:
 
-| hui | cx(svg) | position |
+| hui | 理論比例 | position |
 |---|---|---|
-| 1 | 320.1 | 0.1469 |
-| 2 | 303.6 | 0.1880 |
-| 3 | 290.5 | 0.2207 |
-| 4 | 271.1 | 0.2691 |
-| 5 | 238.05 | 0.3516 |
-| 6 | 211.8 | 0.4170 |
-| 7 | 172.5 | 0.5150 |
-| 8 | 133.2 | 0.6130 |
-| 9 | 108.1 | 0.6756 |
-| 10 | 73.9 | 0.7610 |
-| 11 | 54.5 | 0.8092 |
-| 12 | 41.4 | 0.8418 |
-| 13 | 24.9 | 0.8830 |
+| 1 | 1/8 | 0.1250 |
+| 2 | 1/6 | 0.1667 |
+| 3 | 1/5 | 0.2000 |
+| 4 | 1/4 | 0.2500 |
+| 5 | 1/3 | 0.3333 |
+| 6 | 2/5 | 0.4000 |
+| 7 | 1/2 | 0.5000 |
+| 8 | 3/5 | 0.6000 |
+| 9 | 2/3 | 0.6667 |
+| 10 | 3/4 | 0.7500 |
+| 11 | 4/5 | 0.8000 |
+| 12 | 5/6 | 0.8333 |
+| 13 | 7/8 | 0.8750 |
 
 - [ ] **Step 1: 寫失敗測試**
 
@@ -170,15 +170,15 @@ describe('guqin constants', () => {
     expect(HUI_POSITIONS).toHaveLength(13);
   });
 
-  it('matches positions derived from guqin-vector.svg circle coordinates', () => {
-    expect(HUI_POSITIONS[0]).toBeCloseTo(0.1469, 3);   // 一徽
-    expect(HUI_POSITIONS[6]).toBeCloseTo(0.5150, 3);   // 七徽
-    expect(HUI_POSITIONS[12]).toBeCloseTo(0.8830, 3);  // 十三徽
+  it('matches theoretical hui ratios (岳山到龍齦的簡單整數比)', () => {
+    expect(HUI_POSITIONS[0]).toBeCloseTo(1 / 8, 5);   // 一徽
+    expect(HUI_POSITIONS[6]).toBeCloseTo(1 / 2, 5);   // 七徽,弦正中點
+    expect(HUI_POSITIONS[12]).toBeCloseTo(7 / 8, 5);  // 十三徽
   });
 
   it('huiToPosition maps hui number (1-13) to normalized position', () => {
-    expect(huiToPosition(7)).toBeCloseTo(0.5150, 3);
-    expect(huiToPosition(1)).toBeCloseTo(0.1469, 3);
+    expect(huiToPosition(7)).toBeCloseTo(0.5, 5);
+    expect(huiToPosition(1)).toBeCloseTo(0.125, 5);
   });
 
   it('nearestHui finds the closest hui to a normalized position', () => {
@@ -214,11 +214,11 @@ Create `src/model/guqin.ts`:
 export const STRING_COUNT = 7;
 
 // 十三徽在弦上的正規化位置(0 = 岳山/彈弦端, 1 = 龍齦端)。
-// 數值由 guqin-vector.svg 內十三個徽記號的 cx 座標換算而來(見本檔案所屬計畫文件的對照表),
-// 而非理論諧音分數,確保工作區 PositionStrip 與展示區 GuqinDisplay 視覺對齊。
+// 採古琴傳統理論徽位:岳山到龍齦的簡單整數比(見本檔案所屬計畫文件的對照表),
+// 七徽 = 1/2 恰為弦正中點。guqin-vector.svg 的徽記號座標已調整為視覺上貼近此比例。
 export const HUI_POSITIONS: readonly number[] = [
-  0.1469, 0.1880, 0.2207, 0.2691, 0.3516, 0.4170, 0.5150,
-  0.6130, 0.6756, 0.7610, 0.8092, 0.8418, 0.8830,
+  1 / 8, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 2 / 5, 1 / 2,
+  3 / 5, 2 / 3, 3 / 4, 4 / 5, 5 / 6, 7 / 8,
 ];
 
 /** hui 編號 1..13 → 正規化位置 0..1 */
