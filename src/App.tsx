@@ -1,6 +1,7 @@
 import { TransportBar } from './components/TransportBar';
 import { StatusBar } from './components/StatusBar';
 import { PositionStrip } from './components/PositionStrip';
+import { GuqinDisplay } from './components/GuqinDisplay';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
       <TransportBar />
       <StatusBar />
       <PositionStrip />
+      <GuqinDisplay />
     </div>
   );
 }
