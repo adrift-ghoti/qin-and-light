@@ -123,8 +123,9 @@ cp guqin-vector.svg public/guqin-vector.svg
 
 刪除 `src/model/sanity.test.ts`。
 
+**注意**:repo 已存在(目前分支 `main`,已有先前的規劃文件提交紀錄),不需要也不應該 `git init`;直接加入變更並提交即可。
+
 ```bash
-git init
 git add -A
 git commit -m "chore: scaffold Vite React TS project with Vitest"
 ```
@@ -183,7 +184,8 @@ describe('guqin constants', () => {
 
   it('nearestHui finds the closest hui to a normalized position', () => {
     expect(nearestHui(0.52)).toBe(7);
-    expect(nearestHui(0.15)).toBe(1);
+    // 0.15 與二徽(1/6≈0.1667,距離≈0.0167)比一徽(1/8=0.125,距離0.025)更近,故最近徽位是 2。
+    expect(nearestHui(0.15)).toBe(2);
   });
 
   it('parseHuiNotation converts "N.f" hui-fen notation to normalized position', () => {
@@ -448,6 +450,15 @@ describe('serialize round-trip', () => {
   it('rejects JSON with a wrong/missing version', () => {
     expect(() => deserializeProject('{"notes":[]}')).toThrow();
   });
+
+  it('rejects a project whose notes array contains a malformed note', () => {
+    const p = sampleProject();
+    const withBadNote = {
+      ...p,
+      notes: [{ ...p.notes[0], id: undefined }, p.notes[1]],
+    };
+    expect(() => deserializeProject(JSON.stringify(withBadNote))).toThrow(/note\[0\]/);
+  });
 });
 ```
 
@@ -461,7 +472,29 @@ Expected: FAIL,找不到 `./serialize`。
 Create `src/model/serialize.ts`:
 
 ```ts
-import { Project, PROJECT_VERSION } from './types';
+import { Project, PROJECT_VERSION, NoteType } from './types';
+
+const VALID_NOTE_TYPES: readonly NoteType[] = ['san', 'fan', 'an'];
+
+/** 對單一 note 做最小結構驗證,不合法時丟出指出第幾筆的錯誤 */
+function assertValidNote(note: unknown, index: number): void {
+  if (typeof note !== 'object' || note === null) {
+    throw new Error(`Malformed project: note[${index}] is not an object`);
+  }
+  const n = note as Record<string, unknown>;
+  if (typeof n.id !== 'string' || n.id.length === 0) {
+    throw new Error(`Malformed project: note[${index}] missing a valid "id"`);
+  }
+  if (typeof n.startTime !== 'number' || Number.isNaN(n.startTime)) {
+    throw new Error(`Malformed project: note[${index}] missing a numeric "startTime"`);
+  }
+  if (typeof n.type !== 'string' || !VALID_NOTE_TYPES.includes(n.type as NoteType)) {
+    throw new Error(`Malformed project: note[${index}] has an invalid "type": ${String(n.type)}`);
+  }
+  if (!Array.isArray(n.adsr)) {
+    throw new Error(`Malformed project: note[${index}] missing an array "adsr"`);
+  }
+}
 
 export function serializeProject(project: Project): string {
   return JSON.stringify(project, null, 2);
@@ -475,6 +508,7 @@ export function deserializeProject(json: string): Project {
   if (!obj.audio || !Array.isArray(obj.notes)) {
     throw new Error('Malformed project: missing audio or notes');
   }
+  obj.notes.forEach((note, i) => assertValidNote(note, i));
   return obj as Project;
 }
 ```
@@ -482,7 +516,7 @@ export function deserializeProject(json: string): Project {
 - [ ] **Step 4: 執行測試確認通過**
 
 Run: `npm test src/model/serialize.test.ts`
-Expected: PASS,2 個測試通過。
+Expected: PASS,3 個測試通過。
 
 - [ ] **Step 5: 提交**
 
@@ -543,6 +577,24 @@ describe('store', () => {
     expect(updated.huiNotation).toBe('7.6');
     expect(updated.position).toBeGreaterThan(0);
   });
+
+  it('setNotePosition writes position directly and clears huiNotation, bypassing hui-fen parsing', () => {
+    const n = createPlaceholderNote({ startTime: 1, type: 'an' });
+    useStore.getState().addNote(n);
+    useStore.getState().setNoteHuiNotation(n.id, '7.6'); // 先給一個徽分記法
+    useStore.getState().setNotePosition(n.id, 0.42);      // 按音點擊路徑改走這裡
+    const updated = useStore.getState().notes[0];
+    expect(updated.position).toBe(0.42);
+    expect(updated.huiNotation).toBeUndefined();
+  });
+
+  it('rejects a fan note given a hui-fen notation with a nonzero decimal', () => {
+    // 泛音只能落在整數徽位;帶小數(如 "7.6")會讓 position 與 hui 互相矛盾。
+    const n = createPlaceholderNote({ startTime: 1, type: 'fan' });
+    useStore.getState().addNote(n);
+    expect(() => useStore.getState().setNoteHuiNotation(n.id, '7.6')).toThrow();
+    expect(useStore.getState().notes[0]).toEqual(n); // 失敗時 note 不變
+  });
 });
 ```
 
@@ -575,6 +627,7 @@ interface AppState {
   cycleEditingField: () => void;
   setNoteString: (id: string, string: number) => void;
   setNoteHuiNotation: (id: string, notation: string) => void;
+  setNotePosition: (id: string, position: number) => void;
   nudgeNoteTime: (id: string, deltaSec: number) => void;
   setAudio: (a: AudioMeta) => void;
   setCurrentTime: (t: number) => void;
@@ -605,6 +658,10 @@ export const useStore = create<AppState>((set) => ({
     set((s) => ({
       notes: s.notes.map((n) => {
         if (n.id !== id) return n;
+        // 泛音只能落在整數徽位:帶非零小數(如 "7.6")會讓 position 與 hui 互相矛盾,直接拒絕。
+        if (n.type === 'fan' && !/^\d{1,2}$/.test(notation.trim())) {
+          throw new Error(`泛音只能使用整數徽位,不可帶小數: "${notation}"`);
+        }
         const position = parseHuiNotation(notation);
         return {
           ...n,
@@ -613,6 +670,13 @@ export const useStore = create<AppState>((set) => ({
           hui: n.type === 'fan' ? nearestHui(position) : n.hui,
         };
       }),
+    })),
+  // 按音在 PositionStrip 上點擊時直接寫入正規化 position,不經過徽分記法解析,
+  // 避免把 "0.523" 這種字串塞給 parseHuiNotation 導致丟例外(見 Task 9)。
+  setNotePosition: (id, position) =>
+    set((s) => ({
+      notes: s.notes.map((n) =>
+        (n.id === id ? { ...n, position, huiNotation: undefined } : n)),
     })),
   nudgeNoteTime: (id, deltaSec) =>
     set((s) => ({
@@ -629,7 +693,7 @@ export const useStore = create<AppState>((set) => ({
 - [ ] **Step 4: 執行測試確認通過**
 
 Run: `npm test src/state/store.test.ts`
-Expected: PASS,4 個測試通過。
+Expected: PASS,6 個測試通過。
 
 - [ ] **Step 5: 提交**
 
@@ -742,6 +806,7 @@ export function TransportBar() {
   const setAudio = useStore((s) => s.setAudio);
   const setCurrentTime = useStore((s) => s.setCurrentTime);
   const audio = useStore((s) => s.audio);
+  const currentTime = useStore((s) => s.currentTime); // 訂閱式讀取,才會在播放中隨時間重繪
   const [playing, setPlaying] = useState(false);
   const raf = useRef<number>();
 
@@ -769,7 +834,7 @@ export function TransportBar() {
         {playing ? '⏸ 暫停' : '▶ 播放'}
       </button>
       <span>
-        {useStore.getState().currentTime.toFixed(2)}s / {audio?.durationSec.toFixed(2) ?? '0'}s
+        {currentTime.toFixed(2)}s / {audio?.durationSec.toFixed(2) ?? '0'}s
       </span>
       {audio && <span> — {audio.fileName}</span>}
     </div>
@@ -881,10 +946,25 @@ const NUDGE_STEP_BIG = 0.1;
 
 export function useGlobalShortcuts() {
   const bufferRef = useRef('');
+  // 是否正在編輯欄位緩衝字串:第一個數字鍵按下時設 true,Enter 成功/Esc 取消時設 false,
+  // 選取新音或插入新占位音時也重設 false。只有這個值為 false 時,Delete/Backspace 才會刪除整個音;
+  // 否則 Backspace 只刪 buffer 最後一字——避免 Enter 確認後 buffer 已清空,
+  // 使用者多按一下 Backspace 就誤刪選中音的問題。
+  const isEditingRef = useRef(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
+
+      // 按過播放按鈕(取得焦點)後再按 Space,瀏覽器會在 keyup 觸發按鈕原生啟動,
+      // 若我們的處理器仍往下走一般流程,會變成「原生啟動 + 這裡的播放切換」各一次。
+      // 在最前面單獨攔截這個情況,只切換播放狀態並 preventDefault,阻止按鈕原生啟動。
+      if (target.tagName === 'BUTTON' && e.key === ' ') {
+        e.preventDefault();
+        engine.isPlaying() ? engine.pause() : engine.play();
+        return;
+      }
+
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return; // 不干擾原生輸入框(如匯入檔案)
 
       const { selectedId, editingField, notes } = useStore.getState();
@@ -917,6 +997,7 @@ export function useGlobalShortcuts() {
           ? Math.max(0, (idx === -1 ? sorted.length : idx) - 1)
           : Math.min(sorted.length - 1, idx + 1);
         useStore.getState().selectNote(sorted[nextIdx].id);
+        isEditingRef.current = false;
         engine.seek(sorted[nextIdx].startTime);
         return;
       }
@@ -927,6 +1008,7 @@ export function useGlobalShortcuts() {
         useStore.getState().addNote(note);
         useStore.getState().selectNote(note.id);
         bufferRef.current = '';
+        isEditingRef.current = false;
         return;
       }
       if (!selected) return;
@@ -937,34 +1019,50 @@ export function useGlobalShortcuts() {
         bufferRef.current = '';
         return;
       }
-      if (e.key === 'Delete' || (e.key === 'Backspace' && bufferRef.current === '')) {
+      if (e.key === 'Delete') {
         e.preventDefault();
-        useStore.getState().removeNote(selected.id);
+        // 編輯中(isEditingRef.current === true)時 Delete 不刪音,避免跟欄位輸入互相干擾。
+        if (!isEditingRef.current) useStore.getState().removeNote(selected.id);
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
         if (bufferRef.current === '') return;
-        if (editingField === 'string') {
-          useStore.getState().setNoteString(selected.id, Number(bufferRef.current));
-        } else {
-          useStore.getState().setNoteHuiNotation(selected.id, bufferRef.current);
+        try {
+          if (editingField === 'string') {
+            useStore.getState().setNoteString(selected.id, Number(bufferRef.current));
+          } else {
+            useStore.getState().setNoteHuiNotation(selected.id, bufferRef.current);
+          }
+          bufferRef.current = '';
+          isEditingRef.current = false;
+        } catch (err) {
+          // 欄位格式不合法(如位置欄位打成 "7..6",或泛音打成帶小數的 "7.6")。
+          // 保留 buffer 不清空,讓使用者可以繼續修正;不視為編輯結束,isEditingRef 維持 true。
+          // TODO: 這個切片先用 console.warn 頂著,之後應改成欄位旁的可見錯誤提示(UI toast/inline message)。
+          console.warn(`欄位輸入無法解析,已保留原輸入供修正: ${(err as Error).message}`);
         }
-        bufferRef.current = '';
         return;
       }
       if (e.key === 'Escape') {
         e.preventDefault();
         bufferRef.current = '';
+        isEditingRef.current = false;
         return;
       }
       if (e.key === 'Backspace') {
         e.preventDefault();
-        bufferRef.current = bufferRef.current.slice(0, -1);
+        if (isEditingRef.current) {
+          bufferRef.current = bufferRef.current.slice(0, -1);
+        } else {
+          // 不在編輯中(buffer 已確認過或本來就沒在打字):Backspace 視同 Delete,刪除選中音。
+          useStore.getState().removeNote(selected.id);
+        }
         return;
       }
       if (/^[0-9.]$/.test(e.key)) {
         e.preventDefault();
+        isEditingRef.current = true;
         bufferRef.current = appendDigit(bufferRef.current, e.key, editingField);
       }
     }
@@ -982,7 +1080,7 @@ Update `src/App.tsx` 加入 `useGlobalShortcuts();`(於元件內呼叫,不渲染
 - [ ] **Step 6: 手動驗證**
 
 Run: `npm run dev`
-Expected:載入音檔後按 `Space` 可播放/暫停;`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中;選中音後按數字鍵(如 `3`)再按 `Enter` 可設定弦號;`Tab` 切到位置欄位後輸入 `7.6` 再 `Enter` 可設定按點;`Shift+←/→` 能微調選中音的時間;`Delete` 能刪除選中音。
+Expected:載入音檔後按 `Space` 可播放/暫停,即使先前點過播放按鈕、焦點停留在按鈕上也一樣只切換一次(不會雙重觸發);`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中;選中音後按數字鍵(如 `3`)再按 `Enter` 可設定弦號;`Tab` 切到位置欄位後輸入 `7.6` 再 `Enter` 可設定按點;`Enter` 確認成功後,馬上再按一次 `Backspace` 不會刪除該音(需先按數字鍵進入編輯狀態,`Backspace` 才會改成刪字);位置欄位故意打入不合法字串(如 `7..6`)按 `Enter` 時,主控台會印出警告且輸入保留可繼續修正,不會拋出未捕捉例外;`Shift+←/→` 能微調選中音的時間;未在編輯欄位時 `Delete`/`Backspace` 能刪除選中音。
 
 - [ ] **Step 7: 提交**
 
@@ -1022,6 +1120,7 @@ export function PositionStrip() {
   const selectedId = useStore((s) => s.selectedId);
   const editingField = useStore((s) => s.editingField);
   const setNoteHuiNotation = useStore((s) => s.setNoteHuiNotation);
+  const setNotePosition = useStore((s) => s.setNotePosition);
 
   const selected = notes.find((n) => n.id === selectedId);
   const active = !!selected && selected.type !== 'san' && editingField === 'position';
@@ -1031,10 +1130,15 @@ export function PositionStrip() {
     const rect = ref.current!.getBoundingClientRect();
     const raw = (e.clientX - rect.left - PAD_X) / (rect.width - PAD_X * 2);
     const pos = Math.min(1, Math.max(0, raw));
-    const notation = selected.type === 'fan'
-      ? String(nearestHui(pos))          // 泛音限整數徽位
-      : (pos).toFixed(3);                 // 按音先存正規化位置,細節見下方註記
-    setNoteHuiNotation(selected.id, notation);
+    if (selected.type === 'fan') {
+      // 泛音限整數徽位,走徽分記法解析(nearestHui 保證是合法整數,parseHuiNotation 不會 throw)。
+      setNoteHuiNotation(selected.id, String(nearestHui(pos)));
+    } else {
+      // 按音:pos 是像 0.523 這種連續值,不是合法的徽分記法字串("N.f"),
+      // 若丟給 setNoteHuiNotation/parseHuiNotation 會必定 throw。改走 setNotePosition
+      // 直接寫入正規化位置,不經徽分解析(見 Task 5 的 setNotePosition)。
+      setNotePosition(selected.id, pos);
+    }
   }
 
   return (
@@ -1065,7 +1169,7 @@ export function PositionStrip() {
 }
 ```
 
-> 註:`setNoteHuiNotation` 期望徽分記法字串(`parseHuiNotation`),而點擊直接算出正規化 `position`。此步先以 `pos.toFixed(3)` 暫存(非嚴格徽分格式)供按音使用;若要讓按音點擊也能精準對齊真實徽分記法,下一份計畫可加入「正規化位置 → 最近徽分記法字串」的反向換算函式,替換掉這裡的暫時作法。此為已知簡化,先讓滑鼠與鍵盤兩條路徑資料結構一致(`position`/`hui` 都正確)為優先。
+> 註:按音點擊直接呼叫 `setNotePosition` 把正規化 `position` 寫入 store,不經過 `parseHuiNotation`/徽分記法解析,因為滑鼠點擊產生的是連續值(如 `0.523`),不符合 `parseHuiNotation` 只接受徽號 1-13 加一位小數的格式,硬塞進去會 throw。這代表按音用滑鼠點擊設定的位置目前**沒有**對應的徽分記法文字(`huiNotation` 會是 `undefined`,Timeline 只能顯示 `position.toFixed(2)`);若要讓按音點擊也能回填精準的徽分記法供顯示/日後編輯用,下一份計畫可加入「正規化位置 → 最近徽分記法字串」的反向換算函式。此為已知簡化,先確保滑鼠路徑不會拋例外、且 `position` 資料正確為優先。
 
 - [ ] **Step 2: 在 App.tsx 掛上 PositionStrip**
 
@@ -1091,7 +1195,7 @@ git commit -m "feat: add PositionStrip for mouse-driven position/hui editing"
 - Create: `src/components/GuqinDisplay.tsx`
 - Modify: `src/App.tsx`
 
-古琴七弦在 `guqin-vector.svg`(座標系為 `<g transform="translate(45.5,80)">` 內)的端點如下,`position=0` 對應 `x=379`(岳山端),`position=1` 對應 `x=-22`(龍齦端):
+古琴七弦在 `guqin-vector.svg`(座標系為 `<g transform="translate(45.5,80)">` 內)的端點如下。**注意**:`x1=379` 是畫弦線段本身的視覺端點(靠近岳山木塊外緣),但 `guqin-vector.svg` 上十三個徽記號圓點實際是以 `x=363`(岳山木塊**內緣**)到 `x=-22`(龍齦)這 385 個單位佈徽的——驗證:七徽 `(363-170.78)/385≈0.4993≈1/2`,與 Task 2 的理論徽位 `1/2` 吻合;若誤用 `x1=379` 當 position 換算基準,七徽會算成 `≈0.5410`,導致光點與圖上徽記號圓點水平錯位約 8 個 SVG 單位。因此下方 `markerPoint` 換算的 `position=0` 基準取 `x=363`,而非弦線段本身的 `x1=379`(y 值仍取自弦線兩端點,見下表):
 
 | 弦號 | y1(x=379 處) | y2(x=-22 處) |
 |---|---|---|
@@ -1120,8 +1224,8 @@ const STRING_ENDPOINTS = [
   { y1: 14.4, y2: 6 },
   { y1: 21.6, y2: 9 },
 ] as const;
-const X1 = 379; // position 0(岳山端)
-const X2 = -22; // position 1(龍齦端)
+const X1 = 363; // position 0(岳山木塊內緣,徽位換算基準——非弦線段本身端點 x=379)
+const X2 = -22;  // position 1(龍齦端)
 
 function markerPoint(stringIndex: number, position: number): { x: number; y: number } {
   const { y1, y2 } = STRING_ENDPOINTS[stringIndex];
