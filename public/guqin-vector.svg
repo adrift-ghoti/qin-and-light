@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+  <g transform="translate(45.5,80)" fill="none" stroke="#2c2118" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    
+    <path d="&#xA;      M 0,-26&#xA;      L 30,-28.3 L 60,-26.1 L 95,-30 L 130,-27.9 L 165,-31.8 L 200,-29.8 L 235,-33.7 L 270,-31.6 L 305,-35.5 L 340,-33.5 L 380,-36&#xA;      A 36 36 0 0 1 380,36&#xA;      L 340,33.5 L 305,35.5 L 270,31.6 L 235,33.7 L 200,29.8 L 165,31.8 L 130,27.9 L 95,30 L 60,26.1 L 30,28.3 L 0,26&#xA;      A 26 26 0 0 1 0,-26&#xA;      Z"></path>
+
+    
+    <rect x="363" y="-34" width="16" height="68" rx="4" fill="#2c2118" stroke="none"></rect>
+
+    
+    <line x1="379" y1="-21.6" x2="-22" y2="-9" stroke-width="1.6"></line>
+    <line x1="379" y1="-14.4" x2="-22" y2="-6" stroke-width="1.6"></line>
+    <line x1="379" y1="-7.2" x2="-22" y2="-3" stroke-width="1.6"></line>
+    <line x1="379" y1="0" x2="-22" y2="0" stroke-width="1.6"></line>
+    <line x1="379" y1="7.2" x2="-22" y2="3" stroke-width="1.6"></line>
+    <line x1="379" y1="14.4" x2="-22" y2="6" stroke-width="1.6"></line>
+    <line x1="379" y1="21.6" x2="-22" y2="9" stroke-width="1.6"></line>
+
+    
+    <circle cx="25.66" cy="-21.18" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="41.78" cy="-21.60" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="54.68" cy="-21.94" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="74.03" cy="-22.45" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="106.28" cy="-23.30" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="132.08" cy="-23.98" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="170.78" cy="-25.00" r="3.8" fill="#2c2118" stroke="none"></circle>
+    <circle cx="209.48" cy="-26.02" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="235.28" cy="-26.70" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="267.53" cy="-27.54" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="286.88" cy="-28.05" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="299.78" cy="-28.39" r="3.4" fill="#2c2118" stroke="none"></circle>
+    <circle cx="315.91" cy="-28.82" r="3.4" fill="#2c2118" stroke="none"></circle>
+  </g>
+</svg>
