@@ -32,10 +32,11 @@ export function StatusBar() {
       弦
       {selected.type !== 'san' && (
         <>
-          {' '}
+          {' '}第
           <span style={{ textDecoration: editingField === 'position' ? 'underline' : undefined }}>
             {positionDisplay}
           </span>
+          徽
         </>
       )}
     </div>

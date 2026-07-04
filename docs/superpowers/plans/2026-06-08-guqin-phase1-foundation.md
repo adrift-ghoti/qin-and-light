@@ -1160,10 +1160,11 @@ export function StatusBar() {
       弦
       {selected.type !== 'san' && (
         <>
-          {' '}
+          {' '}第
           <span style={{ textDecoration: editingField === 'position' ? 'underline' : undefined }}>
             {positionDisplay}
           </span>
+          徽
         </>
       )}
     </div>
@@ -1206,8 +1207,10 @@ const W = 800;
 const H = 60;
 const PAD_X = 20;
 
+// position=0(岳山)畫在右邊、position=1(龍齦)畫在左邊,與 GuqinDisplay 的方向一致
+// (GuqinDisplay 裡 X1=363/岳山 在較大的 x 座標、視覺上偏右,X2=-22/龍齦偏左)(2026-07-05 修正)。
 function positionX(pos: number): number {
-  return PAD_X + (W - PAD_X * 2) * pos;
+  return W - PAD_X - (W - PAD_X * 2) * pos;
 }
 
 export function PositionStrip() {
@@ -1224,7 +1227,8 @@ export function PositionStrip() {
   function onClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!active || !selected) return;
     const rect = ref.current!.getBoundingClientRect();
-    const raw = (e.clientX - rect.left - PAD_X) / (rect.width - PAD_X * 2);
+    // 畫面上左右已反轉(position=0/岳山在右、position=1/龍齦在左),換算滑鼠位置時要對應反過來。
+    const raw = 1 - (e.clientX - rect.left - PAD_X) / (rect.width - PAD_X * 2);
     const pos = Math.min(1, Math.max(0, raw));
     if (selected.type === 'fan') {
       // 泛音限整數徽位,走徽分記法解析(nearestHui 保證是合法整數,parseHuiNotation 不會 throw)。
