@@ -7,6 +7,8 @@
 > 2. 音事件建立改為**鍵盤快捷鍵優先**:`S`/`F`/`A` 插入只帶 `type`+`startTime` 的占位音,`string`/`position`/`hui` 留空待補,而非滑鼠一次點擊決定全部欄位。
 > 3. `Note.string`/`position`/`hui` 改為可選,新增 `huiNotation` 保存徽分記法原文(如 `"7.6"`)。
 > 4. `HUI_POSITIONS` 改由 `guqin-vector.svg` 內十三個徽記號的實際座標換算,取代原本手寫的諧音分數近似值。
+>
+> **2026-07-04 二次更新**:對齊 `施作注意事項.md` 的定案與已修正錯誤(座標基準 `X1=363`、`setNotePosition`、店層例外處理等已直接改在下方各 Task 內容,不再另行列出);另外把兩項此前遺漏的定案補進 Task 2 與 Task 8:(a)`parseHuiNotation` 開放 `13.1`–`13.9` 內插到龍齦,支援徽外按音;(b)新增 `StatusBar` 元件與 store 的 `editBuffer`,讓快捷鍵輸入緩衝可見,不再盲打。
 
 **Goal:** 建立一個可執行的最小古琴聲光秀編輯器:能匯入音檔並播放、用鍵盤快捷鍵在當前時間建立音事件、在工作區用滑鼠或數字鍵設定位置/徽位、在展示區的寫實古琴圖上看到對應標記、在時間軸檢視/刪除、並能將整個專案匯出/匯入 JSON 且 round-trip 無損。
 
@@ -155,6 +157,8 @@ git commit -m "chore: scaffold Vite React TS project with Vitest"
 | 12 | 5/6 | 0.8333 |
 | 13 | 7/8 | 0.8750 |
 
+**徽外按音(2026-07-04 定案,見 `施作注意事項.md` B6)**:實際琴曲會用到十三徽以外、靠龍齦側的按音。`parseHuiNotation` 對徽號 13 額外允許 `.1`–`.9` 的小數位,內插到龍齦(`position=1`,視為虛擬的「第十四徽」),不再對此拋出例外;1–12 徽的小數位仍內插到下一個實際徽位。泛音不受此影響,依然限整數徽位 1–13(store 層另有檢查,見 Task 5)。
+
 - [ ] **Step 1: 寫失敗測試**
 
 Create `src/model/guqin.test.ts`:
@@ -196,8 +200,16 @@ describe('guqin constants', () => {
     expect(parseHuiNotation('7.0')).toBeCloseTo(HUI_POSITIONS[6], 5);
   });
 
+  it('parseHuiNotation extends beyond the 13th hui towards 龍齦(position=1),供徽外按音使用', () => {
+    // 13.5 = 十三徽往龍齦(position=1,視為虛擬的「第十四徽」)方向走十分之五
+    const expected13 = HUI_POSITIONS[12] + 0.5 * (1 - HUI_POSITIONS[12]);
+    expect(parseHuiNotation('13.5')).toBeCloseTo(expected13, 5);
+    expect(parseHuiNotation('13.9')).toBeLessThan(1);
+    expect(parseHuiNotation('13.9')).toBeGreaterThan(HUI_POSITIONS[12]);
+  });
+
   it('parseHuiNotation throws on out-of-range hui', () => {
-    expect(() => parseHuiNotation('13.5')).toThrow();
+    expect(() => parseHuiNotation('14.5')).toThrow();
     expect(() => parseHuiNotation('0.5')).toThrow();
   });
 });
@@ -246,6 +258,9 @@ export function nearestHui(position: number): number {
  * 解析古琴傳統徽分記法 "N.f"(N=徽號 1-13, f=0-9 十分位),
  * 例如 "7.6" = 第七徽往第八徽方向走十分之六。整數(如 "7")視為 "7.0"。
  * 在 HUI_POSITIONS[N] 與 HUI_POSITIONS[N+1] 之間依 f/10 線性內插。
+ *
+ * 徽外按音(2026-07-04 定案):徽號 13 的小數位內插到龍齦(position=1,
+ * 視為虛擬的「第十四徽」),不再視為超出範圍。
  */
 export function parseHuiNotation(notation: string): number {
   const match = /^(\d{1,2})(?:\.(\d))?$/.exec(notation.trim());
@@ -253,10 +268,9 @@ export function parseHuiNotation(notation: string): number {
   const hui = Number(match[1]);
   const tenth = match[2] ? Number(match[2]) : 0;
   if (hui < 1 || hui > 13) throw new Error(`Hui out of range 1-13: "${notation}"`);
-  if (tenth > 0 && hui === 13) throw new Error(`No hui beyond 13th: "${notation}"`);
   const base = HUI_POSITIONS[hui - 1];
   if (tenth === 0) return base;
-  const next = HUI_POSITIONS[hui]; // hui+1 的 index
+  const next = hui === 13 ? 1 : HUI_POSITIONS[hui]; // 13 徽外插到龍齦(1),其餘為 hui+1 的位置
   return base + (tenth / 10) * (next - base);
 }
 ```
@@ -264,7 +278,7 @@ export function parseHuiNotation(notation: string): number {
 - [ ] **Step 4: 執行測試確認通過**
 
 Run: `npm test src/model/guqin.test.ts`
-Expected: PASS,6 個測試通過。
+Expected: PASS,7 個測試通過。
 
 - [ ] **Step 5: 提交**
 
@@ -595,6 +609,15 @@ describe('store', () => {
     expect(() => useStore.getState().setNoteHuiNotation(n.id, '7.6')).toThrow();
     expect(useStore.getState().notes[0]).toEqual(n); // 失敗時 note 不變
   });
+
+  it('tracks the in-progress keyboard edit buffer for StatusBar display', () => {
+    // 2026-07-04 定案(施作注意事項 B7):快捷鍵打字的緩衝字串要能被 UI 訂閱顯示,
+    // 不能只存在 useGlobalShortcuts 的 ref 裡。
+    useStore.getState().setEditBuffer('7.');
+    expect(useStore.getState().editBuffer).toBe('7.');
+    useStore.getState().reset();
+    expect(useStore.getState().editBuffer).toBe('');
+  });
 });
 ```
 
@@ -621,6 +644,10 @@ interface AppState {
   editingField: EditingField;
   audio: AudioMeta | null;
   currentTime: number;
+  // 快捷鍵輸入緩衝字串的鏡射(2026-07-04 定案,見 施作注意事項 B7):
+  // useGlobalShortcuts 仍以 ref 為即時邏輯來源(避免每個按鍵都觸發 React 重繪的邏輯判斷延遲),
+  // 但每次變動都同步寫回這裡,好讓 StatusBar 能訂閱顯示「編輯中:欄位 = 已輸入字串」。
+  editBuffer: string;
   addNote: (n: Note) => void;
   removeNote: (id: string) => void;
   selectNote: (id: string | null) => void;
@@ -631,6 +658,7 @@ interface AppState {
   nudgeNoteTime: (id: string, deltaSec: number) => void;
   setAudio: (a: AudioMeta) => void;
   setCurrentTime: (t: number) => void;
+  setEditBuffer: (buffer: string) => void;
   loadProject: (p: Project) => void;
   reset: () => void;
 }
@@ -641,6 +669,7 @@ export const useStore = create<AppState>((set) => ({
   editingField: 'string',
   audio: null,
   currentTime: 0,
+  editBuffer: '',
   addNote: (n) => set((s) => ({ notes: [...s.notes, n] })),
   removeNote: (id) =>
     set((s) => ({
@@ -685,15 +714,16 @@ export const useStore = create<AppState>((set) => ({
     })),
   setAudio: (a) => set({ audio: a }),
   setCurrentTime: (t) => set({ currentTime: t }),
-  loadProject: (p) => set({ notes: p.notes, audio: p.audio, selectedId: null, editingField: 'string' }),
-  reset: () => set({ notes: [], selectedId: null, editingField: 'string', audio: null, currentTime: 0 }),
+  setEditBuffer: (buffer) => set({ editBuffer: buffer }),
+  loadProject: (p) => set({ notes: p.notes, audio: p.audio, selectedId: null, editingField: 'string', editBuffer: '' }),
+  reset: () => set({ notes: [], selectedId: null, editingField: 'string', audio: null, currentTime: 0, editBuffer: '' }),
 }));
 ```
 
 - [ ] **Step 4: 執行測試確認通過**
 
 Run: `npm test src/state/store.test.ts`
-Expected: PASS,6 個測試通過。
+Expected: PASS,7 個測試通過。
 
 - [ ] **Step 5: 提交**
 
@@ -873,13 +903,13 @@ git commit -m "feat: add TransportBar with audio load, play/pause, live time"
 
 ---
 
-## Task 8: 全域鍵盤快捷鍵 `useGlobalShortcuts`
+## Task 8: 全域鍵盤快捷鍵 `useGlobalShortcuts` + 輸入狀態列 `StatusBar`
 
-依高層計畫 §3.1:`S`/`F`/`A` 插入占位音;`↑`/`↓` 跳選音;`Tab` 切換編輯欄位(弦號/位置);數字鍵在欄位編輯中組成數值(弦號欄位為單一 1-7 數字,位置欄位為徽分記法);`Enter` 確認、`Esc` 取消、`Backspace` 刪字或刪音;`Space` 播放/暫停;`←`/`→` 與 `Ctrl+←`/`Ctrl+→` 倒退快轉;`Shift+←`/`Shift+→` 與 `Shift+Ctrl+←`/`Shift+Ctrl+→` 微調選中音的 `startTime`。
+依高層計畫 §3.1:`S`/`F`/`A` 插入占位音;`↑`/`↓` 跳選音;`Tab` 切換編輯欄位(弦號/位置);數字鍵在欄位編輯中組成數值(弦號欄位為單一 1-7 數字,位置欄位為徽分記法);`Enter` 確認、`Esc` 取消、`Backspace` 刪字或刪音;`Space` 播放/暫停;`←`/`→` 與 `Ctrl+←`/`Ctrl+→` 倒退快轉;`Shift+←`/`Shift+→` 與 `Shift+Ctrl+←`/`Shift+Ctrl+→` 微調選中音的 `startTime`。另依 2026-07-04 定案(施作注意事項 B7),輸入緩衝字串要能被 UI 訂閱顯示,本 Task 一併加入 `StatusBar` 元件與 store 的 `editBuffer` 鏡射。
 
 **Files:**
-- Create: `src/hooks/useGlobalShortcuts.ts`, `src/hooks/useGlobalShortcuts.test.ts`
-- Modify: `src/App.tsx`
+- Create: `src/hooks/useGlobalShortcuts.ts`, `src/hooks/useGlobalShortcuts.test.ts`, `src/hooks/fieldInput.ts`, `src/hooks/fieldInput.test.ts`, `src/components/StatusBar.tsx`
+- Modify: `src/App.tsx`, `src/state/store.ts`(`editBuffer` 欄位,見 Task 5)
 
 - [ ] **Step 1: 寫失敗測試(欄位輸入緩衝的純邏輯部分)**
 
@@ -952,6 +982,14 @@ export function useGlobalShortcuts() {
   // 使用者多按一下 Backspace 就誤刪選中音的問題。
   const isEditingRef = useRef(false);
 
+  // 2026-07-04 定案(施作注意事項 B7):輸入緩衝要能被 StatusBar 訂閱顯示,不能只活在 ref 裡。
+  // bufferRef 仍是即時邏輯判斷的來源(同步、無 React 重繪延遲),
+  // 但每次變動都透過這個小工具函式同步寫回 store 的 editBuffer。
+  function setBuffer(value: string) {
+    bufferRef.current = value;
+    useStore.getState().setEditBuffer(value);
+  }
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
@@ -997,6 +1035,7 @@ export function useGlobalShortcuts() {
           ? Math.max(0, (idx === -1 ? sorted.length : idx) - 1)
           : Math.min(sorted.length - 1, idx + 1);
         useStore.getState().selectNote(sorted[nextIdx].id);
+        setBuffer('');
         isEditingRef.current = false;
         engine.seek(sorted[nextIdx].startTime);
         return;
@@ -1007,7 +1046,7 @@ export function useGlobalShortcuts() {
         const note = createPlaceholderNote({ startTime: engine.getTime(), type: type[e.key.toLowerCase() as 's'|'f'|'a'] });
         useStore.getState().addNote(note);
         useStore.getState().selectNote(note.id);
-        bufferRef.current = '';
+        setBuffer('');
         isEditingRef.current = false;
         return;
       }
@@ -1016,7 +1055,7 @@ export function useGlobalShortcuts() {
         e.preventDefault();
         if (selected.type === 'san') return; // 散音無位置欄位可切
         useStore.getState().cycleEditingField();
-        bufferRef.current = '';
+        setBuffer('');
         return;
       }
       if (e.key === 'Delete') {
@@ -1034,7 +1073,7 @@ export function useGlobalShortcuts() {
           } else {
             useStore.getState().setNoteHuiNotation(selected.id, bufferRef.current);
           }
-          bufferRef.current = '';
+          setBuffer('');
           isEditingRef.current = false;
         } catch (err) {
           // 欄位格式不合法(如位置欄位打成 "7..6",或泛音打成帶小數的 "7.6")。
@@ -1046,14 +1085,14 @@ export function useGlobalShortcuts() {
       }
       if (e.key === 'Escape') {
         e.preventDefault();
-        bufferRef.current = '';
+        setBuffer('');
         isEditingRef.current = false;
         return;
       }
       if (e.key === 'Backspace') {
         e.preventDefault();
         if (isEditingRef.current) {
-          bufferRef.current = bufferRef.current.slice(0, -1);
+          setBuffer(bufferRef.current.slice(0, -1));
         } else {
           // 不在編輯中(buffer 已確認過或本來就沒在打字):Backspace 視同 Delete,刪除選中音。
           useStore.getState().removeNote(selected.id);
@@ -1063,7 +1102,7 @@ export function useGlobalShortcuts() {
       if (/^[0-9.]$/.test(e.key)) {
         e.preventDefault();
         isEditingRef.current = true;
-        bufferRef.current = appendDigit(bufferRef.current, e.key, editingField);
+        setBuffer(appendDigit(bufferRef.current, e.key, editingField));
       }
     }
 
@@ -1077,16 +1116,53 @@ export function useGlobalShortcuts() {
 
 Update `src/App.tsx` 加入 `useGlobalShortcuts();`(於元件內呼叫,不渲染任何內容)。
 
-- [ ] **Step 6: 手動驗證**
+- [ ] **Step 6: 輸入緩衝可見化 `StatusBar`(2026-07-04 定案,見 施作注意事項 B7)**
+
+快捷鍵打字目前是「盲打」——UI 上完全看不到目前選中音、正在編輯哪個欄位、已經打了什麼字。地基切片就要有一個最小狀態列呈現這些資訊,不等後續的 `NoteInspector`。
+
+Create `src/components/StatusBar.tsx`:
+
+```tsx
+import { useStore } from '../state/store';
+
+const TYPE_LABEL: Record<string, string> = { san: '散音', fan: '泛音', an: '按音' };
+const FIELD_LABEL: Record<string, string> = { string: '弦號', position: '按點/徽位' };
+
+export function StatusBar() {
+  const notes = useStore((s) => s.notes);
+  const selectedId = useStore((s) => s.selectedId);
+  const editingField = useStore((s) => s.editingField);
+  const editBuffer = useStore((s) => s.editBuffer);
+
+  const selected = notes.find((n) => n.id === selectedId);
+
+  if (!selected) {
+    return <div className="status-bar">未選中音 — 按 S/F/A 插入散音/泛音/按音</div>;
+  }
+
+  return (
+    <div className="status-bar">
+      選中:{selected.startTime.toFixed(2)}s {TYPE_LABEL[selected.type]} 第{selected.string ?? '?'}弦
+      {editBuffer !== '' && (
+        <span> — 編輯中:{FIELD_LABEL[editingField]} = {editBuffer}_</span>
+      )}
+    </div>
+  );
+}
+```
+
+Update `src/App.tsx` 加入 `import { StatusBar } from './components/StatusBar';` 並在 `<TransportBar />` 之後加 `<StatusBar />`(擺在工作區其他元件之前,隨時可見)。
+
+- [ ] **Step 7: 手動驗證**
 
 Run: `npm run dev`
-Expected:載入音檔後按 `Space` 可播放/暫停,即使先前點過播放按鈕、焦點停留在按鈕上也一樣只切換一次(不會雙重觸發);`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中;選中音後按數字鍵(如 `3`)再按 `Enter` 可設定弦號;`Tab` 切到位置欄位後輸入 `7.6` 再 `Enter` 可設定按點;`Enter` 確認成功後,馬上再按一次 `Backspace` 不會刪除該音(需先按數字鍵進入編輯狀態,`Backspace` 才會改成刪字);位置欄位故意打入不合法字串(如 `7..6`)按 `Enter` 時,主控台會印出警告且輸入保留可繼續修正,不會拋出未捕捉例外;`Shift+←/→` 能微調選中音的時間;未在編輯欄位時 `Delete`/`Backspace` 能刪除選中音。
+Expected:載入音檔後按 `Space` 可播放/暫停,即使先前點過播放按鈕、焦點停留在按鈕上也一樣只切換一次(不會雙重觸發);`S`/`F`/`A` 在目前播放時間建立對應型別的占位音並自動選中,狀態列同步顯示「選中:… 散音/泛音/按音 第?弦」;選中音後按數字鍵(如 `3`)時狀態列即時顯示「編輯中:弦號 = 3」,按 `Enter` 可設定弦號且狀態列的編輯中字樣消失;`Tab` 切到位置欄位後輸入 `7.6`,狀態列顯示「編輯中:按點/徽位 = 7.6」,`Enter` 確認後設定按點;`Enter` 確認成功後,馬上再按一次 `Backspace` 不會刪除該音(需先按數字鍵進入編輯狀態,`Backspace` 才會改成刪字);位置欄位故意打入不合法字串(如 `7..6`)按 `Enter` 時,主控台會印出警告且輸入保留可繼續修正(狀態列仍顯示該未確認字串),不會拋出未捕捉例外;`Shift+←/→` 能微調選中音的時間;未在編輯欄位時 `Delete`/`Backspace` 能刪除選中音。
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 8: 提交**
 
 ```bash
-git add src/hooks/ src/App.tsx
-git commit -m "feat: add global keyboard shortcuts for note creation and field editing"
+git add src/hooks/ src/components/StatusBar.tsx src/App.tsx
+git commit -m "feat: add global keyboard shortcuts, StatusBar, and store-backed edit buffer"
 ```
 
 ---
@@ -1422,7 +1498,7 @@ git commit -m "feat: add ExportPanel for JSON export/import round-trip"
 ## 驗收(本切片完成的定義)
 
 - `npm test` 全綠(guqin、notes、serialize、store、fieldInput 的單元測試)。
-- `npm run dev` 後可:載入音檔並播放/暫停(滑鼠或 `Space`)、時間與聲音同步;`S`/`F`/`A` 在當前時間建立占位音並自動選中;`Tab` 切換欄位、數字鍵+`Enter` 或在 `PositionStrip` 點擊都能正確補上弦號與位置/徽位;`Shift+←/→` 能微調選中音時間;展示區 `GuqinDisplay` 在 `guqin-vector.svg` 上正確弦、正確位置顯示標記;`Timeline` 可選取/刪除且標示未完成音;匯出後重新匯入畫面一致(round-trip 無損)。
+- `npm run dev` 後可:載入音檔並播放/暫停(滑鼠或 `Space`)、時間與聲音同步;`S`/`F`/`A` 在當前時間建立占位音並自動選中;`Tab` 切換欄位、數字鍵+`Enter` 或在 `PositionStrip` 點擊都能正確補上弦號與位置/徽位;`StatusBar` 即時顯示選中音摘要與編輯中欄位/緩衝字串;`Shift+←/→` 能微調選中音時間;展示區 `GuqinDisplay` 在 `guqin-vector.svg` 上正確弦、正確位置顯示標記;`Timeline` 可選取/刪除且標示未完成音;匯出後重新匯入畫面一致(round-trip 無損)。
 
 ## 下一份計畫(本切片之後)
 
