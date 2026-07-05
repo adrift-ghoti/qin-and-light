@@ -46,3 +46,27 @@ export function parseHuiNotation(notation: string): number {
   const next = hui === 13 ? 1 : HUI_POSITIONS[hui]; // 13 徽外插到龍齦(1),其餘為 hui+1 的位置
   return base + (tenth / 10) * (next - base);
 }
+
+/**
+ * parseHuiNotation 的反函式:把正規化位置(0..1,例如滑鼠點擊 PositionStrip 算出的按音位置)
+ * 換算回徽分記法字串 "N" 或 "N.f",供只有 position、沒有 huiNotation 原文的按音顯示用
+ * (按音在 PositionStrip 上點擊設定時直接寫入 position,不經過 parseHuiNotation,見 setNotePosition)。
+ * 找出 p 落在哪個徽位區間(base <= p < next),十分位四捨五入後夾在 0-9(徽外按音同 parseHuiNotation
+ * 的規則,13 徽的區間終點視為龍齦 position=1)。
+ */
+export function positionToHuiNotation(position: number): string {
+  const p = Math.min(1, Math.max(0, position));
+  let hui = 1;
+  for (let i = HUI_POSITIONS.length - 1; i >= 0; i -= 1) {
+    if (HUI_POSITIONS[i] <= p) {
+      hui = i + 1;
+      break;
+    }
+  }
+  const base = HUI_POSITIONS[hui - 1];
+  const next = hui === 13 ? 1 : HUI_POSITIONS[hui];
+  const span = next - base;
+  const rawTenth = span === 0 ? 0 : ((p - base) / span) * 10;
+  const tenth = Math.min(9, Math.max(0, Math.round(rawTenth)));
+  return tenth === 0 ? String(hui) : `${hui}.${tenth}`;
+}

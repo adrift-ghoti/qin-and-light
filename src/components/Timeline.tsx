@@ -25,8 +25,14 @@ export function Timeline() {
           ].filter(Boolean).join(' ');
           return (
             <li key={n.id} onClick={() => selectNote(n.id)} className={classNames || undefined}>
-              {n.startTime.toFixed(2)}s — 第{displayStringField(n, selectedId, editingField, editBuffer)}弦 — {TYPE_LABEL[n.type]}
-              {n.type !== 'san' && ` @ ${displayPositionField(n, selectedId, editingField, editBuffer)}`}
+              {n.startTime.toFixed(2)}s — {TYPE_LABEL[n.type]}{' '}
+              {displayStringField(n, selectedId, editingField, editBuffer)}弦
+              {n.type !== 'san' && (
+                <>
+                  {' '}
+                  {displayPositionField(n, selectedId, editingField, editBuffer)}徽
+                </>
+              )}
               {!isNoteComplete(n) && ' (未完成)'}
               <button className="btn" onClick={(e) => { e.stopPropagation(); removeNote(n.id); }}>刪除</button>
             </li>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  STRING_COUNT, HUI_POSITIONS, huiToPosition, nearestHui, parseHuiNotation,
+  STRING_COUNT, HUI_POSITIONS, huiToPosition, nearestHui, parseHuiNotation, positionToHuiNotation,
 } from './guqin';
 
 describe('guqin constants', () => {
@@ -45,5 +45,27 @@ describe('guqin constants', () => {
   it('parseHuiNotation throws on out-of-range hui', () => {
     expect(() => parseHuiNotation('14.5')).toThrow();
     expect(() => parseHuiNotation('0.5')).toThrow();
+  });
+
+  it('positionToHuiNotation is the inverse of parseHuiNotation for exact hui positions', () => {
+    // 七徽正中點(1/2)換算回去應該是整數 "7",不帶 ".0"
+    expect(positionToHuiNotation(HUI_POSITIONS[6])).toBe('7');
+    expect(positionToHuiNotation(HUI_POSITIONS[0])).toBe('1');
+  });
+
+  it('positionToHuiNotation round-trips a mid-segment position back to "N.f"', () => {
+    const p = parseHuiNotation('7.6');
+    expect(positionToHuiNotation(p)).toBe('7.6');
+  });
+
+  it('positionToHuiNotation handles 徽外按音(13 徽到龍齦之間)', () => {
+    const p = parseHuiNotation('13.5');
+    expect(positionToHuiNotation(p)).toBe('13.5');
+    expect(positionToHuiNotation(1)).toBe('13.9'); // 龍齦本身夾到 13.9,不會冒出不存在的「14徽」
+  });
+
+  it('positionToHuiNotation clamps out-of-range input into 0..1 instead of throwing', () => {
+    expect(() => positionToHuiNotation(-0.2)).not.toThrow();
+    expect(() => positionToHuiNotation(1.2)).not.toThrow();
   });
 });

@@ -48,10 +48,10 @@ describe('displayPositionField', () => {
     expect(displayPositionField(n, n.id, 'position', '9.')).toBe('9.');
   });
 
-  it('falls back to numeric position when no hui notation is set', () => {
+  it('converts position to hui notation when no hui notation text is set (e.g. click-set position)', () => {
     const n = createPlaceholderNote({ startTime: 0, type: 'an' });
-    n.position = 0.5;
-    expect(displayPositionField(n, 'other-id', 'position', '')).toBe('0.50');
+    n.position = 0.5; // 恰為七徽(1/2)
+    expect(displayPositionField(n, 'other-id', 'position', '')).toBe('7');
   });
 
   it('falls back to "?" when position is unset and not being edited', () => {
