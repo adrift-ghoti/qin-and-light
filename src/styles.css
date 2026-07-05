@@ -7,6 +7,7 @@
   --ink-soft: #6b5f45;
   --red: #a63b2e;
   --gold: #b8944a;
+  --strip-bg: #efe6d3;
 }
 
 * {
@@ -139,7 +140,7 @@ body {
 
 .position-strip {
   position: relative;
-  background: #efe6d3;
+  background: var(--strip-bg);
   opacity: 0.6;
   cursor: default;
 }
@@ -185,7 +186,6 @@ body {
 }
 
 .top-bar .transport,
-.top-bar .status-bar,
 .top-bar .export {
   display: flex;
   align-items: center;
