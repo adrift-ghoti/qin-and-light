@@ -136,3 +136,46 @@ body {
 .timeline li.incomplete {
   color: var(--red);
 }
+
+.position-strip {
+  position: relative;
+  background: #efe6d3;
+  opacity: 0.6;
+  cursor: default;
+}
+
+.position-strip.active {
+  opacity: 1;
+  cursor: pointer;
+}
+
+.strip-line {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: var(--gold);
+  transform: translateY(-1px);
+}
+
+.hui-dot {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.strip-marker {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 4px rgba(166, 59, 46, 0.5);
+}

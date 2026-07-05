@@ -41,28 +41,22 @@ export function PositionStrip() {
   }
 
   return (
-    <div
-      ref={ref}
-      onClick={onClick}
-      style={{
-        position: 'relative', width: W, height: H,
-        background: active ? '#222' : '#111', opacity: active ? 1 : 0.5,
-        cursor: active ? 'pointer' : 'default',
-      }}
-    >
-      <div style={{ position: 'absolute', top: H / 2, left: PAD_X, right: PAD_X, height: 2, background: '#c8a96a' }} />
-      {HUI_POSITIONS.map((p, i) => (
-        <div key={i} style={{
-          position: 'absolute', left: positionX(p) - 3, top: H / 2 - 3,
-          width: 6, height: 6, borderRadius: '50%', background: '#eee',
-        }} title={`第${i + 1}徽`} />
-      ))}
-      {selected?.position !== undefined && (
-        <div style={{
-          position: 'absolute', left: positionX(selected.position) - 5, top: H / 2 - 5,
-          width: 10, height: 10, borderRadius: '50%', background: '#ff5',
-        }} />
-      )}
+    <div className="panel workspace-strip">
+      <div className="panel-label">工作區 · 弦線位置(點擊設定)</div>
+      <div
+        ref={ref}
+        onClick={onClick}
+        className={`position-strip${active ? ' active' : ''}`}
+        style={{ width: W, height: H }}
+      >
+        <div className="strip-line" />
+        {HUI_POSITIONS.map((p, i) => (
+          <div key={i} className="hui-dot" style={{ left: positionX(p) - 3 }} title={`第${i + 1}徽`} />
+        ))}
+        {selected?.position !== undefined && (
+          <div className="strip-marker" style={{ left: positionX(selected.position) - 5 }} />
+        )}
+      </div>
     </div>
   );
 }
