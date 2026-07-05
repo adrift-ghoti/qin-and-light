@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useStore } from '../state/store';
+import { useStore, EditingField } from '../state/store';
 import { createPlaceholderNote } from '../model/notes';
 import { engine } from '../audio/engineInstance';
 import { appendDigit } from './fieldInput';
@@ -23,6 +23,30 @@ export function useGlobalShortcuts() {
   function setBuffer(value: string) {
     bufferRef.current = value;
     useStore.getState().setEditBuffer(value);
+  }
+
+  // Enter 與 Tab(2026-07-05 定案:Tab 切換欄位前也要儲存剛打的緩衝字串,不再只有 Enter
+  // 能確認輸入)共用同一套「嘗試把緩衝字串寫入 store」邏輯。緩衝字串為空時視為無事可做、直接成功
+  // (呼叫端據此決定是否可以接著切換欄位/結束編輯);格式不合法時保留緩衝字串供使用者修正,回傳
+  // false,呼叫端不應該接著清空 buffer 或切換欄位。
+  function commitBuffer(noteId: string, field: EditingField): boolean {
+    if (bufferRef.current === '') return true;
+    try {
+      if (field === 'string') {
+        useStore.getState().setNoteString(noteId, Number(bufferRef.current));
+      } else {
+        useStore.getState().setNoteHuiNotation(noteId, bufferRef.current);
+      }
+      setBuffer('');
+      isEditingRef.current = false;
+      return true;
+    } catch (err) {
+      // 欄位格式不合法(如位置欄位打成 "7..6",或泛音打成帶小數的 "7.6")。
+      // 保留 buffer 不清空,讓使用者可以繼續修正;不視為編輯結束,isEditingRef 維持 true。
+      // TODO: 這個切片先用 console.warn 頂著,之後應改成欄位旁的可見錯誤提示(UI toast/inline message)。
+      console.warn(`欄位輸入無法解析,已保留原輸入供修正: ${(err as Error).message}`);
+      return false;
+    }
   }
 
   useEffect(() => {
@@ -89,6 +113,9 @@ export function useGlobalShortcuts() {
       if (e.key === 'Tab') {
         e.preventDefault();
         if (selected.type === 'san') return; // 散音無位置欄位可切
+        // 切換欄位前先嘗試儲存目前緩衝字串(2026-07-05 定案);格式不合法時停留在原欄位,
+        // 保留緩衝供修正,不清空、不切換(commitBuffer 內部的 console.warn 已提示原因)。
+        if (!commitBuffer(selected.id, editingField)) return;
         useStore.getState().cycleEditingField();
         setBuffer('');
         return;
@@ -101,21 +128,7 @@ export function useGlobalShortcuts() {
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (bufferRef.current === '') return;
-        try {
-          if (editingField === 'string') {
-            useStore.getState().setNoteString(selected.id, Number(bufferRef.current));
-          } else {
-            useStore.getState().setNoteHuiNotation(selected.id, bufferRef.current);
-          }
-          setBuffer('');
-          isEditingRef.current = false;
-        } catch (err) {
-          // 欄位格式不合法(如位置欄位打成 "7..6",或泛音打成帶小數的 "7.6")。
-          // 保留 buffer 不清空,讓使用者可以繼續修正;不視為編輯結束,isEditingRef 維持 true。
-          // TODO: 這個切片先用 console.warn 頂著,之後應改成欄位旁的可見錯誤提示(UI toast/inline message)。
-          console.warn(`欄位輸入無法解析,已保留原輸入供修正: ${(err as Error).message}`);
-        }
+        commitBuffer(selected.id, editingField);
         return;
       }
       if (e.key === 'Escape') {

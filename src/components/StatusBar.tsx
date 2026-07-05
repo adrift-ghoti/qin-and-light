@@ -1,4 +1,5 @@
 import { useStore } from '../state/store';
+import { displayStringField, displayPositionField } from '../model/noteDisplay';
 
 const TYPE_LABEL: Record<string, string> = { san: '散音', fan: '泛音', an: '按音' };
 
@@ -14,14 +15,8 @@ export function StatusBar() {
     return <div className="status-bar">未選中音 — 按 S/F/A 插入散音/泛音/按音</div>;
   }
 
-  // 編輯中時顯示還沒確認的緩衝字串;沒在編輯時顯示已確認的值。
-  const stringDisplay = editingField === 'string' && editBuffer !== ''
-    ? editBuffer
-    : String(selected.string ?? '?');
-
-  const positionDisplay = editingField === 'position' && editBuffer !== ''
-    ? editBuffer
-    : (selected.huiNotation ?? (selected.position !== undefined ? selected.position.toFixed(2) : '?'));
+  const stringDisplay = displayStringField(selected, selectedId, editingField, editBuffer);
+  const positionDisplay = displayPositionField(selected, selectedId, editingField, editBuffer);
 
   return (
     <div className="status-bar">

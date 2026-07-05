@@ -35,7 +35,14 @@ export function ExportPanel() {
 
   return (
     <div className="export">
-      <button className="btn" onClick={onExport}>匯出 JSON</button>
+      <button
+        className="btn"
+        onClick={onExport}
+        title="匯出目前專案的完整內容(音檔資訊、所有音符的時間/弦號/位置/走手音等)為 .guqin.json 檔"
+      >
+        匯出 JSON
+      </button>
+      <span className="export-hint">含音檔資訊與所有音符資料,可用右方「選擇檔案」匯入還原</span>
       <input type="file" accept="application/json,.json" onChange={onImport} />
     </div>
   );
