@@ -1,3 +1,4 @@
+import './styles.css';
 import { TransportBar } from './components/TransportBar';
 import { StatusBar } from './components/StatusBar';
 import { PositionStrip } from './components/PositionStrip';

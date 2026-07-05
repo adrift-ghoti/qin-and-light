@@ -1,0 +1,52 @@
+:root {
+  --bg: #f3ede1;
+  --panel: #fbf7ee;
+  --border: #c9b98f;
+  --border-soft: #ddd0ac;
+  --ink: #2b2621;
+  --ink-soft: #6b5f45;
+  --red: #a63b2e;
+  --gold: #b8944a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Noto Serif TC', 'Songti TC', serif;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 8px 10px;
+}
+
+.panel-label {
+  font-size: 10px;
+  color: var(--ink-soft);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.btn {
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  background: transparent;
+  padding: 3px 12px;
+  border-radius: 1px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
