@@ -27,20 +27,20 @@ export function GuqinDisplay() {
   const complete = notes.filter(isNoteComplete);
 
   return (
-    <div style={{ position: 'relative', width: 480, height: 160 }}>
-      <img src="/guqin-vector.svg" width={480} height={160} alt="古琴" />
-      <svg
-        viewBox="0 0 480 160" width={480} height={160}
-        style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-      >
-        <g transform="translate(45.5,80)">
-          {complete.map((n) => {
-            const pos = n.type === 'san' ? SAN_MARKER_POSITION : (n.position ?? 0.5);
-            const { x, y } = markerPoint(n.string! - 1, pos);
-            return <circle key={n.id} cx={x} cy={y} r={4} fill="#ffe066" opacity={0.9} />;
-          })}
-        </g>
-      </svg>
+    <div className="panel display-panel">
+      <div className="panel-label">展示區</div>
+      <div className="display-stage">
+        <img src="/guqin-vector.svg" width={480} height={160} alt="古琴" />
+        <svg viewBox="0 0 480 160" width={480} height={160} className="display-overlay">
+          <g transform="translate(45.5,80)">
+            {complete.map((n) => {
+              const pos = n.type === 'san' ? SAN_MARKER_POSITION : (n.position ?? 0.5);
+              const { x, y } = markerPoint(n.string! - 1, pos);
+              return <circle key={n.id} cx={x} cy={y} r={4} fill="#ffe066" opacity={0.9} />;
+            })}
+          </g>
+        </svg>
+      </div>
     </div>
   );
 }

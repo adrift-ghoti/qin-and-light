@@ -12,24 +12,23 @@ export function Timeline() {
   const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
 
   return (
-    <div className="timeline">
-      <h3>音清單({notes.length})</h3>
+    <div className="panel list-panel timeline">
+      <div className="panel-label">音清單({notes.length})</div>
       <ul>
-        {sorted.map((n) => (
-          <li
-            key={n.id}
-            onClick={() => selectNote(n.id)}
-            style={{
-              fontWeight: n.id === selectedId ? 'bold' : 'normal',
-              color: isNoteComplete(n) ? undefined : '#e08',
-            }}
-          >
-            {n.startTime.toFixed(2)}s — 第{n.string ?? '?'}弦 — {TYPE_LABEL[n.type]}
-            {n.position !== undefined && ` @ ${n.huiNotation ?? n.position.toFixed(2)}`}
-            {!isNoteComplete(n) && ' (未完成)'}
-            <button onClick={(e) => { e.stopPropagation(); removeNote(n.id); }}>刪除</button>
-          </li>
-        ))}
+        {sorted.map((n) => {
+          const classNames = [
+            n.id === selectedId ? 'selected' : '',
+            isNoteComplete(n) ? '' : 'incomplete',
+          ].filter(Boolean).join(' ');
+          return (
+            <li key={n.id} onClick={() => selectNote(n.id)} className={classNames || undefined}>
+              {n.startTime.toFixed(2)}s — 第{n.string ?? '?'}弦 — {TYPE_LABEL[n.type]}
+              {n.position !== undefined && ` @ ${n.huiNotation ?? n.position.toFixed(2)}`}
+              {!isNoteComplete(n) && ' (未完成)'}
+              <button className="btn" onClick={(e) => { e.stopPropagation(); removeNote(n.id); }}>刪除</button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
