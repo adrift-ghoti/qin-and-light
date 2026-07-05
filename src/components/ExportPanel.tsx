@@ -35,7 +35,7 @@ export function ExportPanel() {
 
   return (
     <div className="export">
-      <button onClick={onExport}>匯出 JSON</button>
+      <button className="btn" onClick={onExport}>匯出 JSON</button>
       <input type="file" accept="application/json,.json" onChange={onImport} />
     </div>
   );

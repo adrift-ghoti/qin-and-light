@@ -179,3 +179,15 @@ body {
   background: var(--red);
   box-shadow: 0 0 4px rgba(166, 59, 46, 0.5);
 }
+
+.status-bar span {
+  text-decoration-color: var(--red);
+}
+
+.top-bar .transport,
+.top-bar .status-bar,
+.top-bar .export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

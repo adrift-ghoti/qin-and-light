@@ -30,7 +30,7 @@ export function TransportBar() {
   return (
     <div className="transport">
       <input type="file" accept="audio/*" onChange={onFile} />
-      <button onClick={() => (playing ? engine.pause() : engine.play())}>
+      <button className="btn" onClick={() => (playing ? engine.pause() : engine.play())}>
         {playing ? '⏸ 暫停' : '▶ 播放'}
       </button>
       <span>
