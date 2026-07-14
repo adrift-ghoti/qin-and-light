@@ -1,7 +1,7 @@
 export type NoteType = 'san' | 'fan' | 'an'; // 散音 / 泛音 / 按音
 
 export interface EnvelopePoint { t: number; level: number; }   // t: 相對音起點秒數, level: 0..1
-export interface SlidePoint    { t: number; position: number; } // t: 相對秒數, position: 0..1
+export interface SlidePoint    { t: number; position: number; techniqueId?: string; } // t: 相對秒數, position: 0..1
 
 export interface Note {
   id: string;

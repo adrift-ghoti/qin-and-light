@@ -1,9 +1,6 @@
 import { useStore } from '../state/store';
-import { isNoteComplete } from '../model/types';
 import { HUI_POSITIONS } from '../model/guqin';
-
-// 散音無按點,光點固定放在岳山(position=0)與一徽的中點,示意「整弦振動」而非某個具體按點。
-const SAN_MARKER_POSITION = HUI_POSITIONS[0] / 2;
+import { activeNotePerString, sampleSlide, slideTrail } from '../model/lightEffect';
 
 const STRING_ENDPOINTS = [
   { y1: -21.6, y2: -9 },
@@ -14,17 +11,22 @@ const STRING_ENDPOINTS = [
   { y1: 14.4, y2: 6 },
   { y1: 21.6, y2: 9 },
 ] as const;
-const X1 = 363; // position 0(岳山木塊內緣,徽位換算基準——非弦線段本身端點 x=379)
-const X2 = -22;  // position 1(龍齦端)
+// X1=岳山端(position=0), X2=龍齦端(position=1)
+const X1 = 363, X2 = -22;
 
-function markerPoint(stringIndex: number, position: number): { x: number; y: number } {
-  const { y1, y2 } = STRING_ENDPOINTS[stringIndex];
+function pt(stringIdx: number, position: number) {
+  const { y1, y2 } = STRING_ENDPOINTS[stringIdx];
   return { x: X1 + (X2 - X1) * position, y: y1 + (y2 - y1) * position };
 }
 
+const TRAIL_SEC = 0.3;
+const GHOST_BRIGHTNESS = 0.4;
+
 export function GuqinDisplay() {
-  const notes = useStore((s) => s.notes);
-  const complete = notes.filter(isNoteComplete);
+  const notes = useStore(s => s.notes);
+  const currentTime = useStore(s => s.currentTime);
+
+  const active = activeNotePerString(notes, currentTime);
 
   return (
     <div className="panel display-panel">
@@ -32,11 +34,68 @@ export function GuqinDisplay() {
       <div className="display-stage">
         <img src="/guqin-vector.svg" width={480} height={160} alt="古琴" />
         <svg viewBox="0 0 480 160" width={480} height={160} className="display-overlay">
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           <g transform="translate(45.5,80)">
-            {complete.map((n) => {
-              const pos = n.type === 'san' ? SAN_MARKER_POSITION : (n.position ?? 0.5);
-              const { x, y } = markerPoint(n.string! - 1, pos);
-              return <circle key={n.id} cx={x} cy={y} r={4} fill="#ffe066" opacity={0.9} />;
+            {Array.from(active.entries()).map(([stringNum, { note, elapsed, brightness }]) => {
+              const si = stringNum - 1;
+              const { y1, y2 } = STRING_ENDPOINTS[si];
+              const x1s = X1 + (X2 - X1) * 0;
+              const x2s = X2;
+
+              if (note.type === 'san') {
+                return (
+                  <line
+                    key={note.id}
+                    x1={x1s} y1={y1} x2={x2s} y2={y2}
+                    stroke="#ffe066"
+                    strokeWidth={3}
+                    strokeOpacity={brightness}
+                    filter="url(#glow)"
+                  />
+                );
+              }
+
+              if (note.type === 'fan') {
+                const huiPos = HUI_POSITIONS[(note.hui ?? 7) - 1];
+                const { x, y } = pt(si, huiPos);
+                return (
+                  <circle key={note.id} cx={x} cy={y} r={7}
+                    fill="#ffe066" opacity={brightness} filter="url(#glow)" />
+                );
+              }
+
+              // 按音
+              const slide = note.slide ?? [];
+              const position = slide.length > 0
+                ? sampleSlide(slide, elapsed)
+                : (note.position ?? 0.5);
+              const { x, y } = pt(si, position);
+
+              const trail = slide.length > 0 ? slideTrail(slide, elapsed, TRAIL_SEC) : [];
+
+              return (
+                <g key={note.id}>
+                  {trail.map((tp, i) => {
+                    const tp2 = pt(si, tp.position);
+                    return (
+                      <circle key={i} cx={tp2.x} cy={tp2.y} r={3}
+                        fill="#ffe066"
+                        opacity={tp.opacity * brightness * GHOST_BRIGHTNESS}
+                      />
+                    );
+                  })}
+                  <circle cx={x} cy={y} r={6}
+                    fill="#ffe066" opacity={brightness} filter="url(#glow)" />
+                </g>
+              );
             })}
           </g>
         </svg>

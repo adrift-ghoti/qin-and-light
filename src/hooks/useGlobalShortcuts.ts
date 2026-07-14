@@ -99,6 +99,24 @@ export function useGlobalShortcuts() {
         engine.seek(sorted[nextIdx].startTime);
         return;
       }
+      if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        useStore.getState().openTechniqueMenu();
+        return;
+      }
+      if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault();
+        useStore.getState().undo?.();
+        return;
+      }
+      if (
+        ((e.key === 'y' || e.key === 'Y') && (e.ctrlKey || e.metaKey)) ||
+        ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && e.shiftKey)
+      ) {
+        e.preventDefault();
+        useStore.getState().redo?.();
+        return;
+      }
       if (e.key === 's' || e.key === 'S' || e.key === 'f' || e.key === 'F' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
         const type = { s: 'san', f: 'fan', a: 'an' } as const;

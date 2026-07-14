@@ -7,10 +7,14 @@ import { Timeline } from './components/Timeline';
 import { ExportPanel } from './components/ExportPanel';
 import { AdsrPanel } from './components/AdsrPanel';
 import { SlidePathPanel } from './components/SlidePathPanel';
+import { TechniqueMenu } from './components/TechniqueMenu';
+import { NoteInspector } from './components/NoteInspector';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import { useAutosave } from './hooks/useAutosave';
 
 export default function App() {
   useGlobalShortcuts();
+  useAutosave();
 
   return (
     <div className="app">
@@ -25,10 +29,12 @@ export default function App() {
         <Timeline />
       </div>
       <PositionStrip />
+      <NoteInspector />
       <div className="workspace-drawer">
         <AdsrPanel />
         <SlidePathPanel />
       </div>
+      <TechniqueMenu />
     </div>
   );
 }
